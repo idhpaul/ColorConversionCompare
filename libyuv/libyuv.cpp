@@ -17,19 +17,33 @@
 
 void check_cpu();
 
+#define TEST_WIDTH_HEIGHT 1
+#define TEST_FULL_BUFFER 0
+
 int main()
 {
 	const int src_width = 375;
 	const int src_height = 500;
-	const int dst_width = (src_width + 1)>>1;
-	const int dst_height = (src_height+1)>>1;
+	const int dst_width = 375;
+	const int dst_height = 500;
+#if test
+	const int half_src_width = (src_width + 1) >> 1;
+	const int half_src_height = (src_height + 1) >> 1;
+#else
+	// 해당 나누기를 했을 경우에 힙 오류가 남
+	const int half_src_width = src_width >> 1;
+	const int half_src_height = src_height>> 1;
+#endif
+
 
 	// Create dst
-	uint8_t* nv12 = new uint8_t[src_width * src_height + src_width * src_height >> 1];
+	uint8_t* nv12 = new uint8_t[src_width * src_height + half_src_width * half_src_height * 2];
+	uint8_t* nv12_y = new uint8_t[src_width * src_height];
+	uint8_t* nv12_uv = new uint8_t[half_src_width * half_src_height * 2];
 
 	// Read jpg file
-	std::ifstream infile("cat.jpg");
-	std::ofstream outfile("cat.nv12");
+	std::ifstream infile("cat.jpg",std::ios_base::binary);
+	std::ofstream outfile("cat.yuv");
 	std::vector<uint8_t> buffer;
 
 
@@ -44,28 +58,38 @@ int main()
 		infile.read((char*)(&buffer[0]), length);
 	}
 
+	int32_t test_width, test_height;
+	libyuv::MJPGSize(buffer.data(), length, &test_width, &test_height);
+
 	auto ret = libyuv::MJPGToNV12(buffer.data(),
 		length,
-		nv12,
+		nv12_y,
 		src_width,
-		nv12 + src_width * src_height,
-		dst_width * 2,
+		nv12_uv,
+		half_src_width * 2,
 		src_width,
 		src_height,
 		dst_width,
 		dst_height);
+	if (0 == ret)
+		std::cout << "change to nv12 success" << std::endl;
+	else
+		std::cout << "change to nv12 failed" << std::endl;
 
-	std::cout << ret << std::endl;
 
 	// Save dst file
-	outfile.write((const char*)(nv12), dst_width * dst_height + dst_width * dst_height >> 1);
+	outfile.write((const char*)(nv12_y), dst_width * dst_height);
+	outfile.write((const char*)(nv12_uv), half_src_width * half_src_height * 2);
 
 	infile.close();
 	outfile.close();
 
 	// Delete dst
 	delete[] nv12;
+	delete[] nv12_y;
+	delete[] nv12_uv;
 
+	std::cout << "end" << std::endl;
 
     /*int32_t width = 0, height = 0;
 
